@@ -27,3 +27,11 @@ x = if (this ?= that) "eq" else "uneq";
 
 Number (integral: bool = false) :: if (integral) int else double;
 ```
+
+### Function definitions
+
+```
+f: (x: int, y: int) => int {
+  return x * y;
+}
+```
