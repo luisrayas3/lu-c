@@ -1,14 +1,12 @@
-local function tprint(t, indent, k)
-  if not indent then indent = 0 end
-  if k == nil then k = "" end
-  heading = string.rep("  ", indent) .. k .. ": "
+local function tprint(t, k, indent)
+  local heading = k and string.rep("  ", indent) .. tostring(k) .. ": "
   if type(t) == "table" then
-    print(heading)
+    if heading then print(heading) end
     for k, v in ipairs(t) do
-      tprint(v, indent + 1, k)
+      tprint(v, k, (indent or 0) + 1)
     end
   else
-    print(heading .. t)
+    print((heading or "") .. tostring(t))
   end
 end
 
