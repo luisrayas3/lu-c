@@ -60,3 +60,5 @@ check [[ F :: (T) :> F T; ]]
 check("(T) :> F T", luc.type_func)
 check("(T) :> F T", luc.type_literal)
 check [[ F :: (T) :> F T where { T :: Class; }; ]]
+check("F T (U, V)", luc.type_expr)
+check [[ F :: (T, Uv) :> F T (U, V) where { T :: Class; }; ]]

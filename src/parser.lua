@@ -96,15 +96,18 @@ local assg_op = C "=" + C "+=" + C "-=" + C "*=" + C "/=" + C "%="
 local luc = {
   semicolon_separated(V "decl_def") * -1;
 
-  decl_def
+  decl_def  -- TODO: where in type literal and typed literal should not come after def body
       = V "name" * w * C "::" * w * with_where(V "type_literal") / bin_cap
-      + V "name" * w * C ":" * w * V "typed_literal" / bin_cap
+      + V "name" * w * C ":" * w * with_where(V "generic_typed_literal") / bin_cap
       + V "name" * w * C "==" * w * with_where(V "val_expr") / bin_cap
       + V "name" * w * C ":" * w * with_where(optional(V "type_expr" * w) * C "=" * w * V "val_expr")
       + V "decl"
       ;
   decl = V "name" * w * C ":" * w * with_where(V "type_expr") / bin_cap;
 
+  generic_typed_literal
+      = V "type_param_list" * w * C ":>" * w * V "typed_literal" / bin_cap
+      + V "typed_literal";
   typed_literal  -- symbolic? `i: int { 2 * i } where { for_all (x: int) => {= i * x == x} }`
       = V "func_literal"
       -- + V "array_literal"
@@ -156,8 +159,11 @@ local luc = {
   add_term = chain_binary_op(mul_op, V "mul_term");
   mul_term = chain_prefix_op(un_op, V "un_term");
   un_term = V "func_call" + V "val_atom";
-  func_call = V "callable_atom" * (w * V "args") ^ 1 / left_to_right;
-  args = Cc "(" * V "val_atom" + P "(" * comma_separated(V "val_expr") * P ")" / un_cap;
+  func_call = V "callable_atom" * (w * Cc "()" * V "args") ^ 1 / left_to_right;
+  args
+      = V "val_atom" / list_cap
+      + P "(" * comma_separated(V "val_expr") * P ")"
+      ;
 
   val_atom = V "callable_atom" + V "non_callable_atom";
   callable_atom
@@ -170,7 +176,7 @@ local luc = {
       ;
 
   func_literal = with_where(V "func_type") * w * (V "expr_block" + V "stmt_block") / un_cap;
-  expr_block = P "{" * w * (P "=" / "return") * w * V "val_expr" * w * P "}" / un_cap / list_cap;
+  expr_block = P "{" * w * Cc "return" * P "=" * w * V "val_expr" * w * P "}" / un_cap / list_cap;
   stmt_block = P "{" * semicolon_separated(V "decl_def" + V "effect_stmt") * P "}";
   effect_stmt = if_selected(V "effect_stmt_term", V "effect_stmt");
   effect_stmt_term
