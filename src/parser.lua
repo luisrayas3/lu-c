@@ -1,13 +1,29 @@
 local lpeg = require "lpeg"
 
-local locale = lpeg.locale()
 local P, S, V = lpeg.P, lpeg.S, lpeg.V
+local C, Cc = lpeg.C, lpeg.Cc
+
+local locale = lpeg.locale()
 
 local namechar = locale.alnum + P "_"
 local nameinit = namechar - locale.digit
 local w = locale.space ^ 0  -- optional whitespace
 
-local C, Cc = lpeg.C, lpeg.Cc
+
+local match_stats = {
+  clear = function(self)
+    self.furthest_match = 0
+    self.furthest_match_subject = nil
+  end;
+}
+match_stats:clear()
+local log_pos = lpeg.Cmt(P(true), function(subject, pos, ...)
+  if pos > match_stats.furthest_match then
+    match_stats.furthest_match = pos
+    match_stats.furthest_match_subject = subject
+  end
+  return true
+end)
 
 local function un_cap(op, opee) return {op, opee} end
 local function bin_cap(lhs, op, ...) return {op, lhs, ...} end
@@ -94,25 +110,23 @@ local assg_op = C "=" + C "+=" + C "-=" + C "*=" + C "/=" + C "%="
 
 
 local luc = {
-  semicolon_separated(V "decl_def") * -1;
+  semicolon_separated(V "decl_def") * -1 * log_pos;
 
   decl_def  -- TODO: where in type literal and typed literal should not come after def body
       = V "name" * w * C "::" * w * with_where(V "type_literal") / bin_cap
       + V "name" * w * C ":" * w * with_where(V "generic_typed_literal") / bin_cap
       + V "name" * w * C "==" * w * with_where(V "val_expr") / bin_cap
       + V "name" * w * C ":" * w * with_where(optional(V "type_expr" * w) * C "=" * w * V "val_expr")
-      + V "decl"
+      + V "decl" * log_pos
       ;
   decl = V "name" * w * C ":" * w * with_where(V "type_expr") / bin_cap;
 
   generic_typed_literal
-      = V "type_param_list" * w * C ":>" * w * V "typed_literal" / bin_cap
-      + V "typed_literal";
-  typed_literal  -- symbolic? `i: int { 2 * i } where { for_all (x: int) => {= i * x == x} }`
-      = V "func_literal"
-      -- + V "array_literal"
-      -- + V "struct_literal"
+      = V "type_param_list" * w * C ":>" * (w * V "kind") ^ -1 * w * V "typed_literal" / bin_cap
+      + V "typed_literal"
       ;
+  typed_literal = V "func_literal";
+  kind = V "name";
 
   type_literal
       = V "type_func"
@@ -195,4 +209,4 @@ local luc = {
   name = C(nameinit * namechar ^ 0 - V "keyword");
 }
 
-return function () return P(luc), luc end
+return function () return P(luc), luc, match_stats end
