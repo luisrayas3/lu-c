@@ -16,7 +16,6 @@ local match_stats = {
     self.furthest_match_subject = nil
   end;
 }
-match_stats:clear()
 local log_pos = lpeg.Cmt(P(true), function(subject, pos, ...)
   if pos > match_stats.furthest_match then
     match_stats.furthest_match = pos
@@ -24,6 +23,7 @@ local log_pos = lpeg.Cmt(P(true), function(subject, pos, ...)
   end
   return true
 end)
+match_stats:clear()
 
 local function un_cap(op, opee) return {op, opee} end
 local function bin_cap(lhs, op, ...) return {op, lhs, ...} end
@@ -108,9 +108,8 @@ local func_type_op = C "->" + C "=>"
 
 local assg_op = C "=" + C "+=" + C "-=" + C "*=" + C "/=" + C "%="
 
-
 local luc = {
-  semicolon_separated(V "decl_def") * -1 * log_pos;
+  semicolon_separated(V "decl_def") * -1 * log_pos;  -- TODO: put this at leafs, not root
 
   decl_def  -- TODO: where in type literal and typed literal should not come after def body
       = V "name" * w * C "::" * w * with_where(V "type_literal") / bin_cap
@@ -195,10 +194,12 @@ local luc = {
   effect_stmt = if_selected(V "effect_stmt_term", V "effect_stmt");
   effect_stmt_term
       = V "return_stmt"
-      + V  "name" * w * assg_op * w * with_where(V "val_expr") / bin_cap
       + K "do" * w * (V "stmt_block" + with_where(V "func_call")) / un_cap
+      + V  "lval_expr" * w * assg_op * w * with_where(V "val_expr") / bin_cap
       ;
   return_stmt = K "return" * optional(w * with_where(V "val_expr")) / un_cap;
+
+  lval_expr = V "name";
 
   -- array_literal = ;
 
