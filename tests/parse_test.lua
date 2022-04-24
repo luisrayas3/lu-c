@@ -4,9 +4,9 @@ local tprint = require "print_ast"
 -- Under test
 local luc, luc_grammar, match_stats = require "parser" ()
 
-local print_all = false
+local print_em = false
 
-describe("the luc grammar", function()
+describe("The luC grammar", function()
 
   local function check_result(subject, match)
     -- TODO: How to get busted to print furthest_match if this fails?
@@ -15,10 +15,11 @@ describe("the luc grammar", function()
       assert.equal(subject, match_stats.furthest_match_subject)
     end
 
-    if print_all then
+    if print_em then
       print("")
+      print("---")
       print(subject)
-      print("----")
+      print("")
       print("yielded:")
       tprint(match)
       print("")
@@ -42,46 +43,85 @@ describe("the luc grammar", function()
   end
 
   it("parses integrals", function()
+    print_em = false
     check("0", luc_grammar.num_literal)
     check("01", luc_grammar.num_literal)
   end)
 
-  it("parses other things too", function()
-    check("enum { A == 0; B == 1; }", luc_grammar.type_ction)
-    check("E :: enum { A == 0; B == 1; }", luc_grammar.decl_def)
-    check("struct { x: int; y: int; }", luc_grammar.type_ction)
-    check("P :: struct { x: int; y: int; }", luc_grammar.decl_def)
+  it("parses arithmetic (val_term's)", function()
+    print_em = false
+    check("c / d", luc_grammar.val_term)
+    check("a + b * c // d", luc_grammar.val_term)
+  end)
 
-    check_prog [[ P :: struct { x: int; y: int; }; ]]
-    check_prog [[ E :: enum { A == 0; B == 1; }; ]]
+  it("parses enum, struct, and union literals", function()
+    print_em = false
+    check("enum { A = 0; B = 1; }", luc_grammar.type_literal)
+    check("struct { x : int; y : int; }", luc_grammar.type_literal)
+    check("union { x : int; y : float; }", luc_grammar.type_literal)
+  end)
 
-    check("f: (x: int) => int", luc_grammar.decl)
-    check("(x: int) => int", luc_grammar.type_expr)
-    check("f: (x: int) => int where {}", luc_grammar.decl)
+  it("parses function type literals", function()
+    print_em = false
+    check("(x : int) => int", luc_grammar.type_literal)
+    check("(x : int) -> int", luc_grammar.type_literal)
+    check("(x : int) => (y : int) => int", luc_grammar.type_literal)
+  end)
 
-    check_prog [[ f: (x: int, y: int) => int; ]]
+  it("parses advanced type expressions", function()
+    print_em = false
+    check("(T where { T :: float; })", luc_grammar.type_expr)
+    check("((x : int, y : float) => T where { T :: float; })", luc_grammar.type_expr)
+    -- TODO: check("((int, float) => T where { T :: float; })", luc_grammar.type_expr)
+  end)
 
+  it("parses type expressions", function()
+    print_em = false
+    check("F T (U, V)", luc_grammar.type_expr)
+    check("(T : Type) => Type == (F T)", luc_grammar.func_literal)
+  end)
+
+  it("parses kind expressions (as types)", function()
+    print_em = false
+    check("Type", luc_grammar.type_expr)
+    check("(T : Type) => Type", luc_grammar.type_expr)
+    check("(T : Type, V : Type) => Type", luc_grammar.type_expr)
+  end)
+
+  it("parses program type decls", function()
+    print_em = false
+    check_prog [[ P :: struct { x : int; y : int; }; ]]
+    check_prog [[ E :: enum { A = 0; B = 1; }; ]]
+  end)
+
+  it("parses program func decls", function()
+    print_em = false
+    check_prog [[ f : (x : int) => int; ]]
+    check_prog [[ f : (x : int, y : int, opts : Options) => int where { Options :: struct { v: bool; }; }; ]]
+  end)
+
+  it("parses value function defs", function()
+    print_em = false
+    check_prog [[ F : (T : Type) => Type == T; ]]
+    check_prog [[ A : (F : (_:Type, _:Type) => Type, T : Type) => Type == (F T); ]]
+    check_prog [[ F : (T : Type) => Type == F (U T) where { T :: Class; }; ]]
+  end)
+
+  it("parses program function def", function()
+    print_em = false
     -- N.B. the former translates to a C-function, the latter to a pointer,
     -- also `f` can be used recursively in the former whereas it has not
     -- been declared for use in the definition in the second case.
-    check_prog [[ f: (x: int, y: int) => int { return x * y; }; ]]
-    check_prog [[ f == (x: int, y:int) => int { return x * y; }; ]]
-
-    check("x == a + b where { a == f(z); b == g(y); }", luc_grammar.decl_def)
-
-    check_prog [[ f: (x: int, y: int, opts: Options) => int where {}; ]]
-    check_prog [[ f: (x: int, y: int, opts: Options) => int where { O :: struct { v: bool; }; }; ]]
-
-    check("c / d", luc_grammar.add_term)
-    check_prog [[ x == a + b * c // d; ]]
-    check_prog [[ x == a or b and c | d & e // f; ]]
-    check_prog [[ x == y + z where { y == z; }; ]]
-
-    check_prog [[ F :: (T) :> F T; ]]
-    check("(T) :> F T", luc_grammar.type_func)
-    check("(T) :> F T", luc_grammar.type_literal)
-    check_prog [[ F :: (T) :> F T where { T :: Class; }; ]]
-    check("F T (U, V)", luc_grammar.type_expr)
-    check_prog [[ F :: (T, Uv) :> F T (U, V) where { T :: Class; }; ]]
+    check_prog [[ f : (x : int, y : int) => int { return x * y; }; ]]
+    check_prog [[ f := (x : int, y : int) => int { return x * y; }; ]]
+    check_prog [[ f : (x : int) => int == (x + 1); ]]
   end)
+
+  it("parses program value defs", function()
+    print_em = false
+    check_prog [[ x : int = a + b; ]]
+    check_prog [[ x := a + b where { a := f(z); b := g(y); }; ]]
+    check_prog [[ x := a or b and c | d & e // f; ]]
+  end)
+
 end)

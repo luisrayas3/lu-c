@@ -16,7 +16,7 @@ local match_stats = {
     self.furthest_match_subject = nil
   end;
 }
-local log_pos = lpeg.Cmt(P(true), function(subject, pos, ...)
+local log = lpeg.Cmt(P(true), function(subject, pos, ...)
   if pos > match_stats.furthest_match then
     match_stats.furthest_match = pos
     match_stats.furthest_match_subject = subject
@@ -25,6 +25,7 @@ local log_pos = lpeg.Cmt(P(true), function(subject, pos, ...)
 end)
 match_stats:clear()
 
+local function head_cap(op, ...) return {op, ...} end
 local function un_cap(op, opee) return {op, opee} end
 local function bin_cap(lhs, op, ...) return {op, lhs, ...} end
 local function list_cap(...) return {...} end
@@ -58,9 +59,6 @@ end
 local function semicolon_separated(node)
   return (w * node * w * P ";") ^ 0 * w / list_cap
 end
-local function atomic(node)
-  return P "(" * w * node * w * P ")"
-end
 
 local keywords = P(-1)
 local function K(k)
@@ -72,15 +70,23 @@ end
 local if_kw, else_kw = K "if", K "else"
 local function if_selected(node, if_selected_node)
   -- TODO: support leading ? or !
+  local if_expr = P "(" * w * V "val_expr" * w * P ")";
+  local else_block = else_kw * w * if_selected_node / un_cap;
   return
-      if_kw * w * P "(" * w * V "val_expr" * w * P ")" * w * node
-       * optional(w * else_kw * w * if_selected_node / un_cap) / list_cap  -- TODO: not list_cap
+      if_kw * w * if_expr * w * node * optional(w * else_block) / head_cap
       + node
+      ;
 end
 
 local where_kw = K "where"
 local function with_where(node)
-  return node * w * where_kw * w * P "{" * semicolon_separated(V "decl_def") * P "}" / bin_cap + node
+  return
+      node * w * where_kw * w * P "{" * semicolon_separated(V "chunk_stmt") * P "}" / bin_cap
+      + node
+      ;
+end
+local function atomic(node)
+  return P "(" * w * with_where(node) * w * P ")"
 end
 
 local un_op = C "?" + C "!" + C "+" + C "-" * C "*" * C "/" * C "~"
@@ -108,51 +114,35 @@ local func_type_op = C "->" + C "=>"
 
 local assg_op = C "=" + C "+=" + C "-=" + C "*=" + C "/=" + C "%="
 
-local luc = {
-  semicolon_separated(V "decl_def") * -1 * log_pos;  -- TODO: put this at leafs, not root
+local grammar = {
+  semicolon_separated(V "chunk_stmt" * log) * -1 * log;  -- TODO: put this at leafs, not root
 
-  decl_def  -- TODO: where in type literal and typed literal should not come after def body
-      = V "name" * w * C "::" * w * with_where(V "type_literal") / bin_cap
-      + V "name" * w * C ":" * w * with_where(V "generic_typed_literal") / bin_cap
-      + V "name" * w * C "==" * w * with_where(V "val_expr") / bin_cap
-      + V "name" * w * C ":" * w * with_where(optional(V "type_expr" * w) * C "=" * w * V "val_expr")
-      + V "decl" * log_pos
+  chunk_stmt  -- TODO: where in type literal and typed literal should not come after def body
+      = V "name" * w * C "::" * w * with_where(V "type_expr") / bin_cap
+      + V "name" * w * Cc ":=" * P ":" * w * V "func_decl_def" / bin_cap
+      + V "name" * w * Cc ":=" * P ":" * w * V "decl_def" / bin_cap
+      + V "pure_decl"
       ;
-  decl = V "name" * w * C ":" * w * with_where(V "type_expr") / bin_cap;
+  decl_def = V "decl_typing" * w * P "=" * w * with_where(V "val_expr");
+  decl_typing = optional(with_where(V "type_expr"));
+  pure_decl = V "name" * w * C ":" * w * with_where(V "type_expr") / bin_cap;
 
-  generic_typed_literal
-      = V "type_param_list" * w * C ":>" * (w * V "kind") ^ -1 * w * V "typed_literal" / bin_cap
-      + V "typed_literal"
-      ;
-  typed_literal = V "func_literal";
-  kind = V "name";
-
-  type_literal
-      = V "type_func"
-      + V "type_expr"
-      ;
-  type_func = V "type_param_list" * w * C ":>" * w * V "type_expr" / bin_cap;
-  type_param_list = P "(" * comma_separated(V "name") * P ")" / list_cap;
   type_expr = if_selected(V "type_term", V "type_expr");
   type_term
-      = V "type_ction"
-      + V "func_call"  -- TODO: type_func_call
+      = V "type_literal"
+      + V "func_call"
       + V "type_atom"
       ;
-  type_ction
+  type_literal
       = V "func_type"
       + K "enum" * w * P "{" * semicolon_separated(V "enum_assg") * P "}" / un_cap
-      + K "union" * w * P "{" * semicolon_separated(V "decl") * P "}" / un_cap
-      + K "struct" * w * P "{" * semicolon_separated(V "decl") * P "}" / un_cap
+      + K "union" * w * P "{" * semicolon_separated(V "pure_decl") * P "}" / un_cap
+      + K "struct" * w * P "{" * semicolon_separated(V "pure_decl") * P "}" / un_cap
       ;
+  enum_assg = V "name" * w * C "=" * w * V "val_expr" / bin_cap;
+  func_type = V "param_list" * w * func_type_op * w * V "type_expr" / bin_cap;
+  param_list = P "(" * comma_separated(V "pure_decl") * P ")";
   type_atom = V "name" + atomic(V "type_expr");
-
-  func_type = V "param_list" * w * func_type_op * optional(w * V "type_expr") / bin_cap;
-  param_list = P "(" * comma_separated(V "param") * P ")";
-  param = V "name" * w * C ":" * w * V "type_expr" / bin_cap;
-
-  enum_assg = V "name" * w * C "==" * w * V "val_expr" / bin_cap;
-
 
   val_expr = if_selected(V "val_term", V "val_expr");
   -- TODO: Support prefixing and/xor/or
@@ -186,18 +176,27 @@ local luc = {
       ;
   non_callable_atom
       = V "num_literal"
+      -- + V "str_literal"
       ;
 
-  func_literal = with_where(V "func_type") * w * (V "expr_block" + V "stmt_block") / un_cap;
-  expr_block = P "{" * w * Cc "return" * P "=" * w * V "val_expr" * w * P "}" / un_cap / list_cap;
-  stmt_block = P "{" * semicolon_separated(V "decl_def" + V "effect_stmt") * P "}";
+  func_literal = Cc ":>=" * V "func_decl_def" / head_cap;
+  func_decl_def = with_where(V "func_type") * w * V "func_def_block";
+  func_def_block
+      = V "value_func_def"
+      + V "stmt_block"
+      ;
+  value_func_def = C "==" * w * with_where(V "val_expr") / un_cap;
+  stmt_block = Cc "{}" * P "{" * semicolon_separated(V "inner_stmt") * P "}" / un_cap;
+  inner_stmt
+      = V "chunk_stmt"
+      + V "effect_stmt"
+      ;
   effect_stmt = if_selected(V "effect_stmt_term", V "effect_stmt");
   effect_stmt_term
-      = V "return_stmt"
+      = K "return" * optional(w * with_where(V "val_expr")) / un_cap
       + K "do" * w * (V "stmt_block" + with_where(V "func_call")) / un_cap
-      + V  "lval_expr" * w * assg_op * w * with_where(V "val_expr") / bin_cap
+      + V "lval_expr" * w * assg_op * w * with_where(V "val_expr") / bin_cap
       ;
-  return_stmt = K "return" * optional(w * with_where(V "val_expr")) / un_cap;
 
   lval_expr = V "name";
 
@@ -205,9 +204,11 @@ local luc = {
 
   num_literal = locale.digit ^ 1 / tonumber;
 
+  -- str_literal = P "\"" * ~ "\"" * P"\""
+
   -- Must be the last pattern defined to use complete keywords pattern
   keyword = keywords;
   name = C(nameinit * namechar ^ 0 - V "keyword");
 }
 
-return function () return P(luc), luc, match_stats end
+return function () return P(grammar), grammar, match_stats end
