@@ -79,12 +79,16 @@ where {
 ```
 
 TODO: Why is the above better than many default args?
+ - More compact top-level definition?
 
 ### Is != or xor better?
 
  - xor is more clearly a boolean operator
  - != is more consistent with words -> "lazy" mental shortcut
  - != results in one less operator
+ - xor could be "oneof" in more than 2-argument case though, this actually can
+   be lazy, because if 2 are true, we can exit early. Is this useful?
+   Why 1-of-n and not m-of-n (e.g. exactly two true)?
 
 ```
 if (some_thing < 100 xor the_other_thing `hasQuality`) do {

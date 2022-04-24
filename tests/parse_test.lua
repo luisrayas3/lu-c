@@ -32,6 +32,7 @@ describe("The luC grammar", function()
 
   local function check(term, pattern)
     -- TODO: Use some busted feature to reload `luc`
+    -- Or copy `luc_grammar`?
     luc_grammar[1], prev_root = pattern * -1, luc_grammar[1]
     local match = lpeg.P(luc_grammar):match(term)
     luc_grammar[1] = prev_root
