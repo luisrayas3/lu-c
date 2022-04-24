@@ -1,5 +1,20 @@
 # lu-c
 
+## Installing
+
+```sh
+brew install lua
+brew install luarocks
+luarocks install lpeg
+luarocks install busted  # tests only
+```
+
+## Running tests
+
+```sh
+busted tests/*_test.lua
+```
+
 ## Core type hierarchy
 
 ```
