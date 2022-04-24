@@ -78,8 +78,8 @@ describe("The luC grammar", function()
 
   it("parses type expressions", function()
     print_em = false
-    check("F T (U, V)", luc_grammar.type_expr)
-    check("(T : Type) => Type == (F T)", luc_grammar.func_literal)
+    check("F(U, V)", luc_grammar.type_expr)
+    check("(T : Type) => Type == F(T)", luc_grammar.func_literal)
   end)
 
   it("parses kind expressions (as types)", function()
@@ -98,14 +98,15 @@ describe("The luC grammar", function()
   it("parses program func decls", function()
     print_em = false
     check_prog [[ f : (x : int) => int; ]]
+    check_prog [[ f : (Int, Float) => Bool; ]]
     check_prog [[ f : (x : int, y : int, opts : Options) => int where { Options :: struct { v: bool; }; }; ]]
   end)
 
   it("parses value function defs", function()
     print_em = false
     check_prog [[ F : (T : Type) => Type == T; ]]
-    check_prog [[ A : (F : (_:Type, _:Type) => Type, T : Type) => Type == (F T); ]]
-    check_prog [[ F : (T : Type) => Type == F (U T) where { T :: Class; }; ]]
+    check_prog [[ A : (F : (Type, Type) => Type, T) => Type == F(T, T); ]]
+    check_prog [[ F : (T : Type) => Type == F(U(T)) where { T :: Class; }; ]]
   end)
 
   it("parses program function def", function()

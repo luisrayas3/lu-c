@@ -80,8 +80,9 @@ end
 
 local where_kw = K "where"
 local function with_where(node)
+  local where_block = P "{" * semicolon_separated(V "chunk_stmt") * P "}";
   return
-      node * w * where_kw * w * P "{" * semicolon_separated(V "chunk_stmt") * P "}" / bin_cap
+      node * w * where_kw * w * where_block / bin_cap
       + node
       ;
 end
@@ -117,15 +118,19 @@ local assg_op = C "=" + C "+=" + C "-=" + C "*=" + C "/=" + C "%="
 local grammar = {
   semicolon_separated(V "chunk_stmt" * log) * -1 * log;  -- TODO: put this at leafs, not root
 
+  -- Declarations --
+
   chunk_stmt  -- TODO: where in type literal and typed literal should not come after def body
       = V "name" * w * C "::" * w * with_where(V "type_expr") / bin_cap
-      + V "name" * w * Cc ":=" * P ":" * w * V "func_decl_def" / bin_cap
+      + V "name" * w * Cc ":=" * P ":" * w * V "func_def" / bin_cap
       + V "name" * w * Cc ":=" * P ":" * w * V "decl_def" / bin_cap
       + V "pure_decl"
       ;
   decl_def = V "decl_typing" * w * P "=" * w * with_where(V "val_expr");
   decl_typing = optional(with_where(V "type_expr"));
   pure_decl = V "name" * w * C ":" * w * with_where(V "type_expr") / bin_cap;
+
+  -- Type expressions --
 
   type_expr = if_selected(V "type_term", V "type_expr");
   type_term
@@ -140,9 +145,16 @@ local grammar = {
       + K "struct" * w * P "{" * semicolon_separated(V "pure_decl") * P "}" / un_cap
       ;
   enum_assg = V "name" * w * C "=" * w * V "val_expr" / bin_cap;
-  func_type = V "param_list" * w * func_type_op * w * V "type_expr" / bin_cap;
-  param_list = P "(" * comma_separated(V "pure_decl") * P ")";
-  type_atom = V "name" + atomic(V "type_expr");
+  func_type = V "param_types" * w * func_type_op * w * V "type_expr" / bin_cap;
+  param_types = P "(" * comma_separated(V "param_type") * P ")";
+  param_type = V "pure_decl" + V "unnamed_param_type";
+  unnamed_param_type = Cc "" * Cc ":" * with_where(V "type_expr") / bin_cap;
+  type_atom
+      = V "name"
+      + atomic(V "type_expr")
+      ;
+
+  -- Value expressions --
 
   val_expr = if_selected(V "val_term", V "val_expr");
   -- TODO: Support prefixing and/xor/or
@@ -163,24 +175,26 @@ local grammar = {
   mul_term = chain_prefix_op(un_op, V "un_term");
   un_term = V "func_call" + V "val_atom";
   func_call = V "callable_atom" * (w * Cc "()" * V "args") ^ 1 / left_to_right;
-  args
-      = V "val_atom" / list_cap
-      + P "(" * comma_separated(V "val_expr") * P ")"
-      ;
-
+  args = P "(" * comma_separated(V "val_expr") * P ")";
   val_atom = V "callable_atom" + V "non_callable_atom";
   callable_atom
-      = atomic(V "val_expr")
-      + V "func_literal"
+      = V "func_literal"
       + V "name"
+      + atomic(V "val_expr")
       ;
   non_callable_atom
       = V "num_literal"
       -- + V "str_literal"
       ;
+  func_literal = Cc ":>=" * V "func_def" / head_cap;
 
-  func_literal = Cc ":>=" * V "func_decl_def" / head_cap;
-  func_decl_def = with_where(V "func_type") * w * V "func_def_block";
+  -- Function definitions --
+
+  func_def = with_where(V "func_def_type") * w * V "func_def_block";
+  func_def_type = V "params" * w * func_type_op * w * V "type_expr" / bin_cap;
+  params = P "(" * comma_separated(V "param_decl") * P ")";
+  param_decl = V "pure_decl" + V "untyped_param_decl";
+  untyped_param_decl = V "name" * Cc ":" * Cc "" / bin_cap;
   func_def_block
       = V "value_func_def"
       + V "stmt_block"
@@ -197,14 +211,13 @@ local grammar = {
       + K "do" * w * (V "stmt_block" + with_where(V "func_call")) / un_cap
       + V "lval_expr" * w * assg_op * w * with_where(V "val_expr") / bin_cap
       ;
+  lval_expr = V "name";  -- TODO: Pointers & indexes
 
-  lval_expr = V "name";
-
-  -- array_literal = ;
+  -- Data literals --
 
   num_literal = locale.digit ^ 1 / tonumber;
-
   -- str_literal = P "\"" * ~ "\"" * P"\""
+  -- array_literal = ;
 
   -- Must be the last pattern defined to use complete keywords pattern
   keyword = keywords;
