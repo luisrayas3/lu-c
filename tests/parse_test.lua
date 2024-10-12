@@ -49,6 +49,15 @@ describe("The luC grammar", function()
     check("01", luc_grammar.num_literal)
   end)
 
+  it("parses strings", function()
+    print_em = false
+    check([["Hello world!"]], luc_grammar.str_literal)
+    check([["\\"]], luc_grammar.str_literal)
+    check([["abc\n"]], luc_grammar.str_literal)
+    check([["\xDEAD"]], luc_grammar.str_literal)
+    check([["\"Hello world\""]], luc_grammar.str_literal)
+  end)
+
   it("parses arithmetic (val_term's)", function()
     print_em = false
     check("c / d", luc_grammar.val_term)
@@ -99,7 +108,12 @@ describe("The luC grammar", function()
     print_em = false
     check_prog [[ f : (x : int) => int; ]]
     check_prog [[ f : (Int, Float) => Bool; ]]
-    check_prog [[ f : (x : int, y : int, opts : Options) => int where { Options :: struct { v: bool; }; }; ]]
+    check_prog [[
+      f : (x : int, y : int, opts : Options) => int
+      where {
+        Options :: struct { v: bool; };
+      };
+    ]]
   end)
 
   it("parses value function defs", function()

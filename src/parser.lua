@@ -3,12 +3,6 @@ local lpeg = require "lpeg"
 local P, S, V = lpeg.P, lpeg.S, lpeg.V
 local C, Cc = lpeg.C, lpeg.Cc
 
-local locale = lpeg.locale()
-
-local namechar = locale.alnum + P "_"
-local nameinit = namechar - locale.digit
-local w = locale.space ^ 0  -- optional whitespace
-
 
 local match_stats = {
   clear = function(self)
@@ -24,6 +18,22 @@ local log = lpeg.Cmt(P(true), function(subject, pos, ...)
   return true
 end)
 match_stats:clear()
+
+
+-- Names
+local locale = lpeg.locale()
+local namechar = locale.alnum + P "_"
+local nameinit = namechar - locale.digit
+-- Whitespace
+local w = locale.space ^ 0  -- optional whitespace
+-- Strings
+local quote = P '"'
+local escapes
+    = P "\\" * quote
+    + P "\\" * S "\\nrt"
+    + P "\\" * P "x" * S "01233456789ABCDEF"^-4  -- hex
+    + P "\\" * P "o" * S "01234567"^-3  -- octal
+    -- + P "\\" * unknown_escape
 
 local function head(op, ...) return {op, ...} end
 local function infix(lhs, op, ...) return {op, lhs, ...} end
@@ -94,17 +104,17 @@ local un_op = C "?" + C "!" + C "+" + C "-" * C "*" * C "/" * C "~"
 
 -- Binary operators from highest to lowest precedence
 
--- local exp_op = C "**"  -- Should we just use pow/exp?
-local mul_op = C "*" + C "//" + C "/" + C "%"  -- C "/%"
+-- local exp_op = C "^"  -- Just use `pow`
+local mul_op = C "*" + C "//" + C "/" + C "%" + C "/%"
 local add_op = C "+" + C "-"
 
 local bit_and_op = C "&"
-local bit_xor_op = C "^"
+local bit_xor_op = C "^"  -- "~="?
 local bit_or_op = C "|"
 
 local lt_op = C "<" + C "<="  -- Same precedence as gt
 local gt_op = C ">" + C ">="
-local eq_op = C "?="
+local eq_op = C "=="
 local neq_op = C "!="
 
 local and_op = K "and"
@@ -113,7 +123,7 @@ local or_op = K "or"
 
 local func_type_op = C "->" + C "=>"
 
-local assg_op = C "=" + C "+=" + C "-=" + C "*=" + C "/=" + C "%="
+local assg_op = C "=" + C "+=" + C "-=" + C "*=" + C "//=" + C "/=" + C "%="
 
 local grammar = {
   semicolon_separated(V "chunk_stmt" * log) * -1 * log;  -- TODO: put this at leafs, not root
@@ -214,9 +224,9 @@ local grammar = {
 
   -- Value literals --
 
-  func_literal = Cc ":>=" * V "func_def" / head;
-  num_literal = locale.digit ^ 1 / tonumber;
-  -- str_literal = P "\"" * ~ "\"" * P"\""
+  func_literal = Cc "->{}" * V "func_def" / head;
+  num_literal = locale.digit ^ 1 / tonumber; -- TODO: Hex, octal, etc.
+  str_literal = Cc '""' * quote * C((escapes + P(1) - quote) ^ 0) * quote / head;
   -- array_literal = ;
 
   -- Must be the last pattern defined to use complete keywords pattern
