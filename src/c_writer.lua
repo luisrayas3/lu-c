@@ -31,8 +31,11 @@ local function write_func(node, scopes)
     "}",
   }
 
-  return (c_globals, c_locals, c_out)
+  return c_globals, c_locals, c_out
 end
+
+
+return write_c
 
 [[
 // header
@@ -52,7 +55,7 @@ typedef struct __luC_mpack_1 LUC_NAMESPACED(mpack, MyClassDef);
 ]]
 
 [[
-E :: enum (int) {
+E :: enum (Int) {
   ONE_OPTION = 0;
   TWO_OPTION = 1;
 } where {

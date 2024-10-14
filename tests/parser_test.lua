@@ -128,14 +128,20 @@ describe("The luC grammar", function()
     -- N.B. the former translates to a C-function, the latter to a pointer,
     -- also `f` can be used recursively in the former whereas it has not
     -- been declared for use in the definition in the second case.
-    check_prog [[ f : (x : int, y : int) => int { return x * y; }; ]]
-    check_prog [[ f := (x : int, y : int) => int { return x * y; }; ]]
-    check_prog [[ f : (x : int) => int == (x + 1); ]]
+    check_prog [[ f : (x : Int, y : Int) => Int { return x * y; }; ]]
+    check_prog [[ f := (x : Int, y : Int) => Int { return x * y; }; ]]
+    check_prog [[ f : (x : Int) => Int == (x + 1); ]]
+    check_prog [[
+      add2 : (x : Int, y : Int) => Int
+      {
+        return x + y;
+      };
+    ]]
   end)
 
   it("parses program value defs", function()
     print_em = false
-    check_prog [[ x : int = a + b; ]]
+    check_prog [[ x : Int = a + b; ]]
     check_prog [[ x := a + b where { a := f(z); b := g(y); }; ]]
     check_prog [[ x := a or b and c | d & e // f; ]]
   end)
