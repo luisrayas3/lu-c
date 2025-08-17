@@ -3,7 +3,7 @@ local table = require "table"
 
 local function FunctionDef(t)
   return {
-    node_type = "def";
+    node_type = "stmt";
     node_subtype = "FunctionDef";
     properties = t;
   }
