@@ -1,0 +1,107 @@
+'''
+Implementation of tic tac toe in LuC.
+'''
+
+
+Token :: enum Int
+{
+  EMPTY = 0;
+  X = 1;
+  O = -1;
+};
+
+GameResult :: enum
+{
+  NONE;  \ Still playing
+  WIN_X;
+  WIN_O;
+  TIE;
+};
+
+Game :: struct
+{
+  grid : Array([3, 3]Token);
+  turn : Token;
+  result : GameResult = .NONE;
+};
+
+Move :: Int;
+
+(self : @var Game).play_move(move : Move) -> Bool
+{
+  if (self@.result != .NONE) {
+    return false;
+  }
+  if !(1 <= move <= 9) {
+    return false;
+  }
+  x, y := move /% 3;
+  self@.grid[x][y] = self@.turn;
+  where {
+    win := 3 * self@.turn as Int;
+  }
+  if (
+    or sum(self@.grid[x, ...] as Int) == win
+    or sum(self@.grid[..., y] as Int) == win
+    or if (x == y) sum(loop (range(3)) (i) => { self@.grid[i, i] as Int}) == win
+    or if (x + y == 2) sum(loop (range(3)) (i) => { self@.grid[i, 2 - i] as Int }) == win
+  ) do {
+    self@.result = if (self@.turn == .X) .WIN_X else .WIN_0;
+  }
+  else if !(sum(self@.grid[...])) do {
+    self@.result = .TIE;
+  }
+  else do {
+    self@.turn $= Token(-($ as Int));
+  };
+  return true;
+};
+
+(self : Game).is_over() => Bool
+{
+  \ TODO: Implement me
+};
+
+
+Player :: class (P : Type)
+{
+  (self : P).make_move(state : !Game) -> Move;
+};
+
+
+main : (args : []String) -> Int
+'''
+Main entrypoint for the TicTacToe game.
+'''
+{
+  g := Game();
+  players : Array([2]@Player) = {};
+  while !(g.is_over()) {
+    do render_game(g);
+    do {
+      move := players[g.turn as Int] make_move(g.state);
+    } while !(g.play_move(move));
+  };
+};
+
+---
+
+class Map(M : Type, K : Type, V : Type)
+{
+  get : (M, K) -> ?V;
+  insert : (M, K) -> Void;
+  empty : () -> M;
+}
+
+Map(CustomStringIntMap, String, Int) = {
+  get = CustomStringIntMap.get;
+  ...;
+};
+
+Map(HashMap(K, V), K, V) where {
+  K : Type;
+  Hashable(K);
+  V : Type;
+} {
+  get = GenericMap(K, V).get;
+};
